@@ -23,3 +23,23 @@
 - Min inlet pressure: set pressure + 14.5 PSI
 - Max inlet pressure: 145 PSI
 
+# Pressure Transmitters
+## McMaster 3920N12
+### Electrical Characteristics
+- Loop Voltage: 9-30V DC
+- Output signal: 4-20mA DC, with Ri<800ohm
+
+### Pneumatic Characteristics
+- Port specs: 1/4"M NPT
+- Continuous pressure range: 0-25 PSI
+- Max short-term pressure: 50 PSI
+
+## McMaster 3920N14
+### Electrical Characteristics
+- Loop Voltage: 9-30V DC
+- Output signal: 4-20mA DC, with Ri<800ohm
+
+### Pneumatic Characteristics
+- Port specs: 1/4"M NPT
+- Continuous pressure range: 0-100 PSI
+- Max short-term pressure: 200 PSI
