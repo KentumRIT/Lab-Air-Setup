@@ -73,7 +73,7 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
           - save_data:          True to save to JSON file, False to leave JSON data untouched
           - parameter_name:     Name for the parameter being fit (i.e. "CurrentLoop") to be used when storing data in the JSON file
           - filename:           File name of the JSON file for data export
-          - linenames:          Names for each row in measured_data to be put in legend
+          - linenames:          Names for each row in measured_data to be put in legend if "none", will use a marker style
           - linestyles:         line styles for each row in measured_data
                                              
         Outputs to JSON for each output pair:
@@ -138,47 +138,48 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
 
 
     # ---------------------- CALCULATE LoBF ----------------------
-    lobf_y_dat = np.zeros((num_fits,num_samples))
-    s_est_dat = np.zeros(num_fits)
+    if len(out_in_pairs) > 0:
+        lobf_y_dat = np.zeros((num_fits,num_samples))
+        s_est_dat = np.zeros(num_fits)
 
-    for fit in range(num_fits):
-        fit_pair = out_in_pairs[fit]
-        ao_channel = fit_pair[0]
-        in_channel = fit_pair[1]
+        for fit in range(num_fits):
+            fit_pair = out_in_pairs[fit]
+            ao_channel = fit_pair[0]
+            in_channel = fit_pair[1]
 
-        if not(0 <= ao_channel < num_ao_channels):
-            raise ValueError("value for analog out in 'out_in_pairs' is invalid, falls below 0 or outside of range of number of rows in analog_out_data")
-        if not(0 <= in_channel < num_in_channels):
-            raise ValueError("value for analog in in 'out_in_pairs' is invalid, falls below 0 or outside of range of number of rows in measured_data")
+            if not(0 <= ao_channel < num_ao_channels):
+                raise ValueError("value for analog out in 'out_in_pairs' is invalid, falls below 0 or outside of range of number of rows in analog_out_data")
+            if not(0 <= in_channel < num_in_channels):
+                raise ValueError("value for analog in in 'out_in_pairs' is invalid, falls below 0 or outside of range of number of rows in measured_data")
 
-        x = analog_out_data[ao_channel,:]
-        y = measured_data[in_channel,:]
+            x = analog_out_data[ao_channel,:]
+            y = measured_data[in_channel,:]
 
-        m,b = np.polyfit(x,y,1)                     # LoBF
-        y_pred = m*x + b                            # predicted current values from LoBF
-        ss_res = np.sum(np.square(y_pred - y))      # sum of square residuals
-        s_est = np.sqrt(ss_res/(num_samples-2))     # standard error of the estimate
-        y_mean = np.average(y)
-        ss_tot = np.sum(np.square(y-y_mean))        # sum of total squared error
-        r2 = 1-(ss_res/ss_tot)                      # R squared
+            m,b = np.polyfit(x,y,1)                     # LoBF
+            y_pred = m*x + b                            # predicted current values from LoBF
+            ss_res = np.sum(np.square(y_pred - y))      # sum of square residuals
+            s_est = np.sqrt(ss_res/(num_samples-2))     # standard error of the estimate
+            y_mean = np.average(y)
+            ss_tot = np.sum(np.square(y-y_mean))        # sum of total squared error
+            r2 = 1-(ss_res/ss_tot)                      # R squared
 
-        lobf_y_dat[fit,:] = y_pred
-        s_est_dat[fit] = s_est
+            lobf_y_dat[fit,:] = y_pred
+            s_est_dat[fit] = s_est
 
-        # Update LoBF data for channel
-        if save_data:
-            with open(filename, "r") as f:
-                data = json.load(f)
+            # Update LoBF data for channel
+            if save_data:
+                with open(filename, "r") as f:
+                    data = json.load(f)
 
-            data[f"{parameter_name}{fit+1}"] = {
-                "m": m,
-                "b": b,
-                "s_est": s_est,
-                "r2": r2
-            }
+                data[f"{parameter_name}{fit+1}"] = {
+                    "m": m,
+                    "b": b,
+                    "s_est": s_est,
+                    "r2": r2
+                }
 
-            with open(filename, "w") as f:
-                json.dump(data, f, indent=4)
+                with open(filename, "w") as f:
+                    json.dump(data, f, indent=4)
 
 
 
@@ -191,11 +192,15 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
 
     for ao_channel in range(num_ao_channels):
         c = next(colors)
-        axs1.step(time,analog_out_data[ao_channel,:],linestyle='dashed', color=c, label=f"AO row {ao_channel} data", where='post')
+        axs1.step(time,analog_out_data[ao_channel,:], marker = 'o', linestyle='dashed', color=c, label=f"AO row {ao_channel} data", where='post')
         
     for in_channel in range(num_in_channels):
         c = next(colors)
-        axs1_2.step(time,measured_data[in_channel,:],linestyle=linestyles[in_channel], color=c, label=linenames[in_channel], where='post')
+        if linestyles[in_channel] == "none":
+            markerstyle = "o"
+        else:
+            markerstyle = "none"
+        axs1_2.step(time,measured_data[in_channel,:], marker = markerstyle, linestyle=linestyles[in_channel], color=c, label=linenames[in_channel], where='post')
 
     axs1.set_title('Signals Vs Time')
     axs1.set(xlabel='time (s)', ylabel='AO Voltage (V)')
@@ -206,39 +211,40 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
 
 
     # PLOT AGAINST LoBF
-    rows = int(np.ceil(np.sqrt(num_fits)))
-    cols = int(np.ceil(num_fits / rows))
+    if len(out_in_pairs) > 0:
+        rows = int(np.ceil(np.sqrt(num_fits)))
+        cols = int(np.ceil(num_fits / rows))
 
-    fig2,axs2 = plotter.subplots(rows,cols)
-    for fit in range(num_fits):
-        col = fit//rows
-        row = fit % rows
+        fig2,axs2 = plotter.subplots(rows,cols)
+        for fit in range(num_fits):
+            col = fit//rows
+            row = fit % rows
 
-        if cols == 1:
-            if rows == 1:
-                axs = axs2
+            if cols == 1:
+                if rows == 1:
+                    axs = axs2
+                else:
+                    axs = axs2[row]
             else:
-                axs = axs2[row]
-        else:
-            axs = axs2[row,col]
+                axs = axs2[row,col]
 
-        fit_pair = out_in_pairs[fit]
-        ao_channel = fit_pair[0]
-        in_channel = fit_pair[1]
+            fit_pair = out_in_pairs[fit]
+            ao_channel = fit_pair[0]
+            in_channel = fit_pair[1]
 
-        x = analog_out_data[ao_channel,:]
-        y = measured_data[in_channel,:]
+            x = analog_out_data[ao_channel,:]
+            y = measured_data[in_channel,:]
 
-        y_est = lobf_y_dat[fit,:]
-        y_est_up = y_est + 2*s_est_dat[fit]
-        y_est_down = y_est - 2*s_est_dat[fit]
+            y_est = lobf_y_dat[fit,:]
+            y_est_up = y_est + 2*s_est_dat[fit]
+            y_est_down = y_est - 2*s_est_dat[fit]
 
-        axs.plot(x,y,'k-',label=f"AO row {ao_channel}, Measured row {in_channel}")
-        axs.plot(x,y_est_up,'r--',label="+2 sigma")
-        axs.plot(x,y_est_down,'r--',label="-2 sigma")
-        axs.set_title(f'Calibration Fit For AO/AI Pair {fit}')
-        axs.set(xlabel='AO Voltage (V)', ylabel=y_name)
-        axs.legend()
+            axs.plot(x,y,'k-',label=f"AO row {ao_channel}, Measured row {in_channel}")
+            axs.plot(x,y_est_up,'r--',label="+2 sigma")
+            axs.plot(x,y_est_down,'r--',label="-2 sigma")
+            axs.set_title(f'Calibration Fit For AO/AI Pair {fit}')
+            axs.set(xlabel='AO Voltage (V)', ylabel=y_name)
+            axs.legend()
 
     plotter.show()
     

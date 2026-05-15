@@ -6,7 +6,6 @@ import scipy as sp
 from scipy.signal import butter, filtfilt
 import json
 
-
 def volts_to_psi(volts: np.ndarray[float]) -> np.ndarray[float]:
     """ INFO
         Purpose
@@ -44,12 +43,13 @@ def volts_to_psi(volts: np.ndarray[float]) -> np.ndarray[float]:
 
 # Constants
 json_filename = "Calibration_Params.json"
-samp_per_wave = 10000                        # number of samples per period of wave in calibration data collection
-num_wave = 1                                # number of wave periods per trial in calibration data collection
-wave_period = 2                             # period of a single wave form in [s]
-num_trials = 1                              # number of trials to combine to get complete calibration data (necessary to separate from num_wave due b/c of max buffer size)
-# filter_window_size = 10                     # number of samples for window size of moving average filter
-cutoff_frequency = 50                      # cutoff frequency for butter filter
+samp_per_wave = 10                              # number of samples per period of wave in calibration data collection
+num_wave = 20                                    # number of wave periods per trial in calibration data collection
+wave_period = samp_per_wave*.75                 # period of a single wave form in [s]
+num_trials = 1                                  # number of trials to combine to get complete calibration data (necessary to separate from num_wave due b/c of max buffer size)
+
+cutoff_frequency = (samp_per_wave/wave_period)/(2*np.pi*10)     # cutoff frequency for butter filter
+                                                                #   base noise frequency will be sample_frequency/(2*pi), reduced by factor of 10
 
 # Get 4-20 mA voltage bounds from current loop interface calibration parameters
 with open(json_filename, "r") as f:
@@ -71,10 +71,20 @@ def triangle_wave(x):
     return sp.signal.sawtooth(x, width=0.5)
 
 def square_wave(x):
-    return sp.signal.square(x-(0.5*wave_period), duty=0.5)
+    return sp.signal.square(x-(0.4)*wave_period, duty=0.5)
 
-t,sig = generate_waveform(square_wave,num_wave,voltage_bounds,samp_per_wave,None,1/wave_period)
+
+t,sig = generate_waveform(triangle_wave,num_wave,voltage_bounds,samp_per_wave,None,1/wave_period)
 fs = 1/(t[1]-t[0])  # get sampling frequency from waveform
+
+
+# This block is for generating oversampled waveforms, comment out if not using that
+scale_factor = 1000                 # how many times to sample AI per update of AO
+fs = fs*scale_factor                # update sample frequency
+sig = np.repeat(sig,scale_factor)   # update signal
+t = t = np.arange(len(sig))/fs      # update time
+cutoff_frequency = fs/(2*np.pi*10)  # update filter cutoff
+
 
 # Connect to the DAQ and get data with the above wave form
 my_daq = Daq6421()
@@ -107,21 +117,30 @@ def butter_lowpass_filter(data, cutoff, fs, order=5):
     y = filtfilt(b, a, data)
     return y
 
-def moving_average_filter(data,n):
-    b = np.ones(n)/n
-    a = 1
-    y = filtfilt(b,a,data)
-    return y
 
 data_total = volts_to_psi(data_total)
 
 chan_1_filtered = butter_lowpass_filter(data_total[0,:],cutoff_frequency,fs)
 chan_2_filtered = butter_lowpass_filter(data_total[1,:],cutoff_frequency,fs)
 
-# chan_1_filtered = moving_average_filter(data_total[0,:],filter_window_size)
-# chan_2_filtered = moving_average_filter(data_total[1,:],filter_window_size)
+# data_total = np.vstack((data_total,chan_1_filtered,chan_2_filtered))
+data_total = np.vstack((data_total[0,:],chan_1_filtered))
 
-data_total = np.vstack((data_total,chan_1_filtered,chan_2_filtered))
+# this block is only used if the input waveform was oversampled, comment out if not using that
+test_values = [x*scale_factor for x in range(1, samp_per_wave*num_wave*num_trials + 1)]
+test_values.append(-1)
+analog_out_data = [sig_total[x] for x in test_values[:-1]]       # grabs the data point right before output changes
+pressure_data = [chan_1_filtered[x] for x in test_values[1:]]
+t_data = [t_total[x] for x in test_values[:-1]]
+analog_out_data = np.array((analog_out_data))
+pressure_data = np.array((pressure_data))
+t_data = np.array(t_data)
+
+
+
+get_best_fit(t_data,analog_out_data,pressure_data,[(0,0)],"Measured Pressure (PSI)", True, "Regulator",  linestyles= ['none'], linenames= ["Transducer Filtered"])
 
 # Get best fit data from results
-get_best_fit(t_total,sig_total,data_total,[(0,0),(0,1)],"Measured Pressure (PSI)",linestyles= ['dotted','dotted','solid','solid'], linenames= ["Transducer Unfiltered","Regulator Unfiltered","Transducer Filtered","Regulator Filtered"])
+# get_best_fit(t_total,sig_total,data_total,[],"Measured Pressure (PSI)",linestyles= ['dotted','solid'], linenames= ["Transducer Unfiltered","Transducer Filtered"])
+
+# get_best_fit(t_total,sig_total,data_total[0,:],[],"Measured Pressure (PSI)",linestyles= ['solid'], linenames= ["Transducer Unfiltered"])
