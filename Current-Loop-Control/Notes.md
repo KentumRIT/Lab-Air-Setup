@@ -6,9 +6,14 @@
 - [RNCF1206TKW250R](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RNCF1206TKW250R/24819171): load resistor for current to voltage conversion (1206 package)
 - [FZT653TA](https://www.digikey.com/en/products/detail/diodes-incorporated/FZT653TA/92830): external transistor for XTR (SOT-223-3 package)
 - [SMBJ5362B-TP](https://www.digikey.com/en/products/detail/mcc-micro-commercial-components/SMBJ5362B-TP/1636184): Zener diode for overvoltage protection (DO-214AA package)
-- [1N4148](https://www.digikey.com/en/products/detail/onsemi/1N4148/458603): reverse-voltage protection diode (DO-35) package
+- [ES2BA-13-F](https://www.digikey.com/en/products/detail/diodes-incorporated/ES2BA-13-F/815078): reverse-voltage protection diode (SMA package)
 - [GCM21B5G1H103FA16L](https://www.digikey.com/en/products/detail/murata-electronics/GCM21B5G1H103FA16L/17847866): decoupling capacitor (0805 package)
-- [CL0612KRX7R9BB104](https://www.digikey.com/en/products/detail/yageo/CL0612KRX7R9BB104/5884876): bypass capacitor (0805 package)
+- [54-00166](https://www.digikey.com/en/products/detail/tensility-international-corp/54-00166/10459294): barrel jack terminal
+- [0398800304](https://www.digikey.com/en/products/detail/molex/0398800304/2741453): screw terminal 4 pin
+- [0398800308](https://www.digikey.com/en/products/detail/molex/0398800308/2741457): screw terminal 8 pin
+
+### Total current draw from power supply
+6 current loops (4 input 2 output) @ 25 mA max per loop + 2 power output blocks to regulators taking 0.12 A max per yields 0.39 A max, with a 1.5X margin of safety that is ~0.6A.
 
 ### To offset or not to offset
 I can use the on-board voltage reference of the XTR11X to create a constant 4 mA zero-level current output from the transmitter. This would reduce the range the DAQ needs to control the current transmission for, from 0-20 mA to 4-20 mA. To see if this is worth it, we need to compare the minimum resolution of the DAQ at the larger 0-20 mA range to the span error of the XTR itself. If the DAQ is capable of theoretically driving output currents with error smaller than the span error of the XTR, then we can be confident it's not necessary to include a bias current from the voltage reference.
@@ -38,10 +43,22 @@ Their recommended diode has a max power of 1 W, a max impedance of 50 ohms, and 
 ### Do we need a diode bridge
 The XTR116 datasheet shows a diode bridge between the loop voltage and XTR. This ensures the XTR will work correctly regardless of loop voltage polarity. I don't really care about that functionality, as I can just... plug in things the right way. However, I should definitely protect the loop against reverse voltage, so instead of four diodes to form the bridge I'll only need one in series with the loop positive and the V+ pin. This causes a ~0.7 V drop, which isn't significant for my purposes. The datasheet recommends the [1N4148](https://www.digikey.com/en/products/detail/onsemi/1N4148/458603) diode.
 
+Using multiple of these diodes per section of the pcb seems silly though, so I need to find a diode which I'll put right at the power supply's positive terminal. As discussed above, the max expected current draw is ~0.6 A. I found the [ES2BA-13-F](https://www.digikey.com/en/products/detail/diodes-incorporated/ES2BA-13-F/815078) on Digikey, which has sufficiently low forward voltage and reverse current leakage, and a 2A current limit, significantly higher than 0.6 A max load.
+
 ### Decoupling capacitor
 The XTR datasheet recommends a 10nF decoupling capacitor across V+ and I_o. Looking on Digikey for ceramic capacitors, I found the [GCM21B5G1H103FA16L](https://www.digikey.com/en/products/detail/murata-electronics/GCM21B5G1H103FA16L/17847866).
+
+I should probably also include a few orders of magnitude in parallel, 100nF and 1uF should do.
 
 ### Bypass capacitor
 The XTR datasheet recommends connecting "low-ESR, 0.1uF ceramic bypass capacitors between the supply pin and ground". I found the [CL0612KRX7R9BB104](https://www.digikey.com/en/products/detail/yageo/CL0612KRX7R9BB104/5884876) on Digikey, which has +/- 10% error, 50V rating, and low ESL.
 
-This cap may not be a thing though, as there's no supply or ground pin on the chip itself. I started a TI E2E [forum post](https://e2e.ti.com/support/amplifiers-group/amplifiers/f/amplifiers-forum/1631118/xtr116-xtr116-bypass-capacitor-placement) about this to see if I can get to the bottom of it.
+This cap may not be a thing though, as there's no supply or ground pin on the chip itself. I started a TI E2E [forum post](https://e2e.ti.com/support/amplifiers-group/amplifiers/f/amplifiers-forum/1631118/xtr116-xtr116-bypass-capacitor-placement) about this to see if I can get to the bottom of it. I'm running off the assumption this capacitor doesn't exist.
+
+### Power jack
+I need a 5.5x2.1mm barrel jack (female) for the PCB, I found [54-00166](https://www.digikey.com/en/products/detail/tensility-international-corp/54-00166/10459294) on digikey
+
+### Connectors
+I'm going to use screw terminals to connect the PCB to the 2 current output channels and the 4 current input channels. 2 outputs chosen because there's only 2 analog output pins on the NIDAQ and 4 inputs chosen because I want to be able to monitor regulator pressure and pressure transducer pressure for 2 channels simultaneously. This seems like a scalable number without going crazy. The connectors need to handle everything from very thin ribbon cable wires to the thicker cables of the air regulators (28 gauge to 16 gauge).
+
+For the 4 input channels (2 pins per channel) I've chosen the [0398800308](https://www.digikey.com/en/products/detail/molex/0398800308/2741457) and for the 2 control loops (2 pins per loop) I've chosen the [0398800304](https://www.digikey.com/en/products/detail/molex/0398800304/2741453)
