@@ -73,8 +73,8 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
           - save_data:          True to save to JSON file, False to leave JSON data untouched
           - parameter_name:     Name for the parameter being fit (i.e. "CurrentLoop") to be used when storing data in the JSON file
           - filename:           File name of the JSON file for data export
-          - linenames:          Names for each row in measured_data to be put in legend if "none", will use a marker style
-          - linestyles:         line styles for each row in measured_data
+          - linenames:          Names for each row in measured_data to be put in legend 
+          - linestyles:         line styles for each row in measured_data if "none", will use a marker style
                                              
         Outputs to JSON for each output pair:
           - m:      slope of LoBF
@@ -188,16 +188,22 @@ def get_best_fit(time: np.ndarray[np.float64], analog_out_data: np.ndarray[np.fl
     fig1, axs1 = plotter.subplots()
     axs1_2 = axs1.twinx()
 
-    colors = cycle(plotter.cm.tab10.colors)  # share color cycle between axes so lines don't have the same colors
+    # Get color cycle so lines don't share colors
+    colors = cycle(plotter.cm.tab10.colors)
+   
+    # Get marker cycle so that when 'none' is given for linestyle the lines won't all have the same markers
+    markers = ["+","x","s","D","v","^","<",">","1","2","3","4","o"]
+    marker_cycle = cycle(markers)
+
 
     for ao_channel in range(num_ao_channels):
         c = next(colors)
-        axs1.step(time,analog_out_data[ao_channel,:], marker = 'o', linestyle='dashed', color=c, label=f"AO row {ao_channel} data", where='post')
+        axs1.step(time,analog_out_data[ao_channel,:], linestyle='dashed', color=c, label=f"AO row {ao_channel} data", where='post')
         
     for in_channel in range(num_in_channels):
         c = next(colors)
         if linestyles[in_channel] == "none":
-            markerstyle = "o"
+            markerstyle = next(marker_cycle)
         else:
             markerstyle = "none"
         axs1_2.step(time,measured_data[in_channel,:], marker = markerstyle, linestyle=linestyles[in_channel], color=c, label=linenames[in_channel], where='post')

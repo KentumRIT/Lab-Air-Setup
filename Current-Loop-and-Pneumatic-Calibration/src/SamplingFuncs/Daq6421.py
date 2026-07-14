@@ -16,8 +16,13 @@ class Daq6421:
       - read_write_AiAo() supports single or multi channel writing to Ai/Ao
 
     TODO:
-      - add convert clock delay instead of increasing input samples by 1 and shifting first input channel
+      - None ATM
     """
+
+    def __init__(self):
+        self.device_name = None
+        self.digital_trigger_pin = None
+        self.digital_trigger_edge = None
 
     def setup(self, device_name:str = None):
         # Pulls the device name that will be used for future connections and ensures that DAQ is connected to the host
@@ -52,6 +57,30 @@ class Daq6421:
             for name in device_names:
                 expt_msg += f"   - {name}\n"
             raise ValueError(expt_msg)
+
+    def set_PFI_trigger(self, digital_pin:int|None, edge:bool = True):
+        """ INFO
+        Purpose
+          - sets a digital trigger which is used to start all other analog and digital read/write tasks
+        
+        ARGUMENTS
+          - digital_pin:    an integer 0-15 for the digital pin to use to read the trigger signal
+          - edge:           determines which edge of input signal triggers task start
+                                True for rising edge of signal False for falling edge
+        """
+
+        if not isinstance(digital_pin, int) and digital_pin is not None:
+            raise ValueError("Trigger pin must be integer valued or None for no start trigger")
+        
+        if digital_pin is not None:
+            self.digital_trigger_pin = f"PFI{digital_pin}"
+        else:
+            self.digital_trigger_pin = None
+
+        if edge == False:
+            self.digital_trigger_edge = nidaqmx.constants.Edge.FALLING
+        else:
+            self.digital_trigger_edge = nidaqmx.constants.Edge.RISING
 
     def read_write_AiAo(self, sample_update_rate: float, output_data: np.ndarray[np.float64], input_pins: set[int], output_pins: set[int], input_bounds: tuple[float] = (-10,10), differential_pair: bool = True) -> np.ndarray[np.float64]:
         """ INFO
@@ -145,9 +174,11 @@ class Daq6421:
 
             read_task.timing.cfg_samp_clk_timing(rate=sample_update_rate,
                                                 sample_mode=nidaqmx.constants.AcquisitionType.FINITE,           # we know the number of samples to collect
-                                                samps_per_chan=num_samples + 1)                                 # we have to add 1 because first AI channel has 1 sample delay 
+                                                samps_per_chan=num_samples)
                                                                                 
-            
+            read_task.timing.delay_from_samp_clk_delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
+            read_task.timing.delay_from_samp_clk_delay = 10e-6                                                  # add a 10 microsecond delay between start of sample clock and when we take samples
+
             # Configure output channel (follower clock)
             write_task.ao_channels.add_ao_voltage_chan(output_channels,
                                                     min_val=output_bounds[0], max_val=output_bounds[1])
@@ -157,7 +188,10 @@ class Daq6421:
                                                 samps_per_chan=num_samples)
 
             write_task.triggers.start_trigger.cfg_dig_edge_start_trig(read_task.triggers.start_trigger.term)    # make sure both tasks start at the same time (rising edge default)
-
+            
+            # Set the combined task start trigger if given one
+            if self.digital_trigger_pin is not None:
+                read_task.triggers.start_trigger.cfg_dig_edge_start_trig(f"/{self.device_name}/{self.digital_trigger_pin}",trigger_edge=self.digital_trigger_edge)
 
             # ----------------------- RUN TASKS -----------------------
             if is_in_multichan:
@@ -172,22 +206,23 @@ class Daq6421:
 
             # Pre-allocate buffer for reader
             if is_in_multichan:
-                input_data = np.zeros((len(input_pins), num_samples + 1))   # +1 for same reason as in read task timing configuration
+                input_data = np.zeros((len(input_pins), num_samples))
             else:
-                input_data = np.zeros(num_samples + 1)
+                input_data = np.zeros(num_samples)
 
             # Run tasks, follower first
             writer.write_many_sample(output_data)
             write_task.start()
-            reader.read_many_sample(input_data,number_of_samples_per_channel=num_samples + 1,timeout=nidaqmx.constants.WAIT_INFINITELY)   # +1 for same reason as in read task timing configuration
+            reader.read_many_sample(input_data,number_of_samples_per_channel=num_samples,timeout=nidaqmx.constants.WAIT_INFINITELY)
 
-            # Adjust input_data first channel
-            if is_in_multichan:
-                first_ch_data = input_data[0, 1:]
-                last_chs_data = input_data[1:, :-1]
-                input_data = np.vstack((first_ch_data,last_chs_data))
-            else:
-                input_data = input_data[1:]
+            # # Adjust input_data first channel
+            # if is_in_multichan:
+            #     first_ch_data = input_data[0, 1:]
+            #     last_chs_data = input_data[1:, :-1]
+            #     input_data = np.vstack((first_ch_data,last_chs_data))
+            # else:
+            #     # input_data = input_data[1:]
+            #     input_data = input_data[:-1]
 
             return input_data
 
