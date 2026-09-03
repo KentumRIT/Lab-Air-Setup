@@ -203,3 +203,75 @@ Into the equation for pressure:
 P = 9.372*V - 14.973
 
 These values for slope and intercept are very close to the values determined experimentally, woo!
+
+# Electric Regulator Gain Sensitivity Adjustment
+The ITV2050 regulator had very poor transient performance (as shown in the previous section). I tried adjusting the gain and sensitivity level of the regulator to improve performance. There are 10 gain levels (0-9) and 3 sensitivity levels (0-2); the regulator was originally set with GL of 9 and SL of 0. Below are several graphs showing transient performance for a triangle wave with 4 second period and 2000 samples per period commanding 0-10 psi:
+
+## Gain Level testing
+Gain 0 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain0_Sen0.png)
+
+<br>
+
+Gain 1 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain1_Sen0.png)
+
+<br>
+
+Gain 2 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain2_Sen0.png)
+
+<br>
+
+Gain 3 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain3_Sen0.png)
+
+<br>
+
+Gain 4 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain4_Sen0.png)
+
+<br>
+
+Gain 5 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain5_Sen0.png)
+
+<br>
+
+Gain 6 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain6_Sen0.png)
+
+<br>
+
+Gain 7 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain7_Sen0.png)
+
+<br>
+
+Gain 8 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain8_Sen0.png)
+
+<br>
+
+Gain 9 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain9_Sen0.png)
+
+
+## Sensitivity Level Testing
+Clearly the maximum gain level has the best transient performance, so I'll hold the regulator at a gain level of 9 and adjust the sensitivity level.
+<br>
+
+Gain 9 Sensitivity 0
+![](Images/Figures/RegulatorTuning_Gain9_Sen0.png)
+
+<br>
+
+Gain 9 Sensitivity 1
+![](Images/Figures/RegulatorTuning_Gain9_Sen1.png)
+
+<br>
+
+Gain 9 Sensitivity 2
+![](Images/Figures/RegulatorTuning_Gain9_Sen2.png)
+
+Lower sensitivity seems to be better, so the original setting of 9 for GL and 0 for SL makes sense. Interestingly, the slower linear-ish portion of the venting cycle was consistent for all gains and sensitivities tested at this 0-10 psi range. It also shows up at the previously tested 0-60 psi range, meaning whatever is causing this lagging behavior it's independent of commanded pressure.
